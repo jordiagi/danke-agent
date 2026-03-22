@@ -26,6 +26,7 @@
   ],
   "scripts": {
     "build": "tsup",
+    "test": "vitest run",
     "prepublishOnly": "npm run build"
   },
   "engines": {
@@ -38,6 +39,7 @@
   "devDependencies": {
     "@types/node": "^25.5.0",
     "tsup": "^8.0.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.0"
   }
 }
