@@ -57,7 +57,7 @@ export class DankeAgent {
   private readonly keysPath: string;
 
   constructor(options: DankeAgentOptions) {
-    this.apiUrl = options.apiUrl ?? DEFAULT_API_URL;
+    this.apiUrl = (options.apiUrl ?? DEFAULT_API_URL).replace(/\/+$/, '');
     this.name = options.name;
     this.description = options.description;
     this.keysPath = options.keysPath ?? DEFAULT_KEYS_PATH;
@@ -104,13 +104,14 @@ export class DankeAgent {
    */
   static loadKeys(path: string): { privateKey: Uint8Array; pubkey: string } {
     const raw = readFileSync(path, 'utf8');
-    const data = JSON.parse(raw) as KeysFile;
-    if (!data.privateKey || !data.pubkey) {
+    const data = JSON.parse(raw) as Partial<KeysFile>;
+    if (!data.privateKey) {
       throw new Error(`Invalid keys file at ${path}`);
     }
+    const privateKey = hexToBytes(data.privateKey);
     return {
-      privateKey: hexToBytes(data.privateKey),
-      pubkey: data.pubkey,
+      privateKey,
+      pubkey: bytesToHex(schnorr.getPublicKey(privateKey)),
     };
   }
 
@@ -132,12 +133,8 @@ export class DankeAgent {
   }
 
   private _tryLoadKeys(): { privateKey: Uint8Array; pubkey: string } | null {
-    try {
-      if (!existsSync(this.keysPath)) return null;
-      return DankeAgent.loadKeys(this.keysPath);
-    } catch {
-      return null;
-    }
+    if (!existsSync(this.keysPath)) return null;
+    return DankeAgent.loadKeys(this.keysPath);
   }
 
   private _persistKeys(): void {
@@ -188,12 +185,19 @@ export class DankeAgent {
       );
     }
 
+    if (response.status === 204) {
+      return null as T;
+    }
+
+    const raw = await response.text();
+
     let data: unknown;
     try {
-      data = await response.json();
+      data = JSON.parse(raw);
     } catch {
+      const preview = raw.slice(0, 200);
       throw new DankeError(
-        `Invalid JSON response from server (HTTP ${response.status})`,
+        `Invalid JSON response from server (HTTP ${response.status}): ${preview || '<empty response>'}`,
         'INVALID_RESPONSE',
         response.status
       );
@@ -240,6 +244,9 @@ export class DankeAgent {
    * @returns Receipt of the danke transaction
    */
   async danke(to: string, sats: number, reason?: string): Promise<DankeReceipt> {
+    if (!Number.isInteger(sats) || sats <= 0) {
+      throw new DankeError('sats must be a positive integer', 'INVALID_SATS', 400);
+    }
     const result = await this._request<{ danke: DankeReceipt }>(
       '/api/agent/danke',
       'POST',
