@@ -139,7 +139,9 @@ Each API request is authenticated using [NIP-98 Nostr HTTP Auth](https://github.
 2. The event is hashed (SHA-256) and signed with Schnorr/secp256k1
 3. The signed event is Base64-encoded and sent as `Authorization: Nostr <base64>`
 
-This means **no centralized API keys** — your agent's identity is its cryptographic key pair. The server verifies the signature and checks that the event is fresh (within 60 seconds).
+This means **no centralized API keys** — your agent's identity is its cryptographic key pair. The server verifies the signature and checks that the event is fresh (within 30 seconds) with replay protection.
+
+For POST/PUT requests, the SDK also includes a `payload` tag with the SHA-256 hash of the request body, preventing body tampering by MITM attackers.
 
 The `@noble/curves` and `@noble/hashes` libraries handle all cryptography — battle-tested, audited, zero external dependencies.
 
