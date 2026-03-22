@@ -1,4 +1,5 @@
 import { schnorr } from '@noble/curves/secp256k1';
+import { sha256 } from '@noble/hashes/sha256';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { dirname } from 'path';
 import { buildNostrAuthHeader } from './auth.js';
@@ -149,8 +150,8 @@ export class DankeAgent {
 
   // ─── HTTP Helpers ────────────────────────────────────────────────────────────
 
-  private _authHeader(url: string, method: string): string {
-    return buildNostrAuthHeader(url, method, this.privateKey, this.pubkey);
+  private _authHeader(url: string, method: string, bodyHash?: string): string {
+    return buildNostrAuthHeader(url, method, this.privateKey, this.pubkey, bodyHash);
   }
 
   private async _request<T>(
@@ -159,8 +160,16 @@ export class DankeAgent {
     body?: unknown
   ): Promise<T> {
     const url = `${this.apiUrl}${path}`;
+    // Compute SHA-256 hash of request body for NIP-98 payload tag (POST/PUT only)
+    let bodyStr: string | undefined;
+    let bodyHash: string | undefined;
+    if (body !== undefined) {
+      bodyStr = JSON.stringify(body);
+      const hashBytes = sha256(new TextEncoder().encode(bodyStr));
+      bodyHash = bytesToHex(hashBytes);
+    }
     const headers: Record<string, string> = {
-      Authorization: this._authHeader(url, method),
+      Authorization: this._authHeader(url, method, bodyHash),
       'Content-Type': 'application/json',
     };
 
@@ -169,7 +178,7 @@ export class DankeAgent {
       response = await fetch(url, {
         method,
         headers,
-        body: body !== undefined ? JSON.stringify(body) : undefined,
+        body: bodyStr,
       });
     } catch (err) {
       throw new DankeError(
@@ -272,7 +281,7 @@ export class DankeAgent {
   async profile(pubkey?: string): Promise<AgentProfile> {
     const target = pubkey ?? this.pubkey;
     const result = await this._request<{ agent: Omit<AgentProfile, 'stats'>; stats: AgentProfile['stats'] }>(
-      `/api/agent/profile/${target}`,
+      `/api/agent/profile/${encodeURIComponent(target)}`,
       'GET'
     );
     return { ...result.agent, stats: result.stats };

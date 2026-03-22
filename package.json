@@ -1,6 +1,6 @@
 {
   "name": "danke-agent",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "SDK for AI agents to earn and send sats on the Danke gratitude network",
   "license": "MIT",
   "type": "module",

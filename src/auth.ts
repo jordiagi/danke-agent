@@ -34,13 +34,15 @@ function computeEventId(
  * @param method - HTTP method (GET, POST, etc.)
  * @param privateKey - 32-byte private key
  * @param pubkey - Hex-encoded public key
+ * @param bodyHash - Optional SHA-256 hash of the request body (hex). Added as `payload` tag for POST/PUT.
  * @returns `Authorization` header value: `Nostr <base64>`
  */
 export function buildNostrAuthHeader(
   url: string,
   method: string,
   privateKey: Uint8Array,
-  pubkey: string
+  pubkey: string,
+  bodyHash?: string
 ): string {
   const created_at = Math.floor(Date.now() / 1000);
   const kind = 27235;
@@ -48,6 +50,10 @@ export function buildNostrAuthHeader(
     ['u', url],
     ['method', method.toUpperCase()],
   ];
+  // Include payload hash for body-bearing requests (NIP-98 spec)
+  if (bodyHash) {
+    tags.push(['payload', bodyHash]);
+  }
   const content = '';
 
   const idBytes = computeEventId(pubkey, created_at, kind, tags, content);
